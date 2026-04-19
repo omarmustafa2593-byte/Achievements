@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Omy's Achievement Tree</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #1a1a2e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Press Start 2P', monospace;
+    overflow: auto;
+    padding: 20px;
+  }
+
+  .mc-window {
+    background: #c6c6c6;
+    border: 3px solid #fff;
+    border-right-color: #555;
+    border-bottom-color: #555;
+    padding: 4px;
+    width: 780px;
+    min-height: 680px;
+    position: relative;
+  }
+
+  .mc-titlebar {
+    background: #c6c6c6;
+    color: #3f3f3f;
+    font-size: 9px;
+    padding: 4px 6px 6px;
+    letter-spacing: 0;
+  }
+
+  .mc-inner {
+    background: #1a1a1a;
+    background-image:
+      radial-gradient(ellipse at 20% 30%, #1e1e1e 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 70%, #111 0%, transparent 60%);
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    height: 620px;
+  }
+
+  /* Stone texture overlay */
+  .mc-inner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Crect width='8' height='8' fill='%23191919'/%3E%3Crect x='0' y='0' width='4' height='4' fill='%231c1c1c' opacity='0.5'/%3E%3Crect x='4' y='4' width='4' height='4' fill='%23161616' opacity='0.5'/%3E%3C/svg%3E");
+    opacity: 0.6;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Dirt top strip */
+  .dirt-strip {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 48px;
+    background:
+      repeating-linear-gradient(
+        90deg,
+        #5a3825 0px, #5a3825 16px,
+        #6b4530 16px, #6b4530 32px
+      );
+    background-size: 32px 16px;
+    border-bottom: 4px solid #3d2710;
+    z-index: 1;
+    overflow: hidden;
+  }
+  .dirt-strip::before {
+    content: '';
+    position: absolute;
+    bottom: 4px; left: 0; right: 0;
+    height: 14px;
+    background: #4a7c3f;
+    border-bottom: 3px solid #3a6030;
+  }
+
+  svg.connections {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .node {
+    position: absolute;
+    z-index: 3;
+    cursor: pointer;
+    width: 52px;
+    height: 52px;
+  }
+
+  .node-inner {
+    width: 52px;
+    height: 52px;
+    background: #8b8b8b;
+    border: 3px solid #fff;
+    border-right-color: #373737;
+    border-bottom-color: #373737;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: filter 0.2s;
+    image-rendering: pixelated;
+  }
+
+  .node.locked .node-inner {
+    background: #555;
+    filter: brightness(0.4) saturate(0);
+  }
+
+  .node.unlocked .node-inner {
+    background: #8b8b8b;
+    box-shadow: 0 0 8px 2px rgba(255,220,80,0.5), inset 0 0 6px rgba(255,200,50,0.15);
+    filter: brightness(1.1);
+  }
+
+  .node-inner .emoji {
+    font-size: 24px;
+    line-height: 1;
+    image-rendering: pixelated;
+  }
+
+  /* Glow pulse on unlocked */
+  @keyframes glow-pulse {
+    0%, 100% { box-shadow: 0 0 6px 2px rgba(255,220,80,0.4); }
+    50% { box-shadow: 0 0 14px 5px rgba(255,220,80,0.7); }
+  }
+  .node.unlocked .node-inner {
+    animation: glow-pulse 2s ease-in-out infinite;
+  }
+
+  .node:active .node-inner {
+    border-color: #373737;
+    border-right-color: #fff;
+    border-bottom-color: #fff;
+  }
+
+  /* Tooltip */
+  .tooltip {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #100010;
+    border: 2px solid #5a005a;
+    color: #fff;
+    font-size: 6px;
+    padding: 5px 7px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 10;
+    min-width: 100px;
+    text-align: center;
+    line-height: 1.8;
+  }
+  .tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%; left: 50%;
+    transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-top-color: #5a005a;
+  }
+  .tooltip .tip-title { color: #ffff55; display: block; margin-bottom: 3px; }
+  .tooltip .tip-desc  { color: #aaaaaa; display: block; }
+  .tooltip .tip-link  { color: #55ffff; display: block; margin-top: 3px; font-size: 5px; }
+  .node:hover .tooltip { opacity: 1; }
+
+  /* Done button */
+  .mc-done {
+    position: absolute;
+    bottom: 8px;
+    right: 10px;
+    background: #c6c6c6;
+    border: 3px solid #fff;
+    border-right-color: #555;
+    border-bottom-color: #555;
+    color: #3f3f3f;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    padding: 5px 12px;
+    cursor: pointer;
+  }
+  .mc-done:active {
+    border-color: #555;
+    border-right-color: #fff;
+    border-bottom-color: #fff;
+  }
+
+  /* Counter */
+  .counter {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    color: #aaa;
+    font-size: 6px;
+    z-index: 5;
+  }
+
+  /* Legend */
+  .legend {
+    position: absolute;
+    top: 58px;
+    right: 8px;
+    color: #555;
+    font-size: 5px;
+    z-index: 5;
+    text-align: right;
+    line-height: 2;
+  }
+</style>
+</head>
+<body>
+
+<div class="mc-window">
+  <div class="mc-titlebar">Achievements</div>
+  <div class="mc-inner" id="tree">
+    <div class="dirt-strip"></div>
+
+    <svg class="connections" id="svg-lines"></svg>
+
+    <!-- NODES will be injected by JS -->
+
+    <div class="legend">click to unlock · hover for info</div>
+    <div class="counter" id="counter"></div>
+    <button class="mc-done" onclick="window.close()">Done</button>
+  </div>
+</div>
+
+<script>
+// ─── HOW TO CUSTOMISE YOUR ACHIEVEMENT TREE ─────────────────────────────────
+//
+//  Each achievement is an object with these fields:
+//
+//  id       — unique name, no spaces (used internally)
+//  emoji    — any emoji shown as the icon
+//  title    — short achievement name (shown in tooltip)
+//  desc     — one-line description of what it means
+//  x, y     — position on the board in pixels (tweak to move nodes around)
+//  requires — list of IDs that must be visually connected before this one
+//             (purely cosmetic — you can still click any node to unlock it)
+//  link     — paste your Notion page URL here; clicking an UNLOCKED node opens it
+//
+//  TO ADD A NEW ACHIEVEMENT:
+//    1. Copy any block below and paste it at the end (before the closing ];)
+//    2. Give it a unique id
+//    3. Add its id to another node's requires: [] to connect them
+//
+//  TO REMOVE AN ACHIEVEMENT:
+//    Delete its block and remove its id from any requires: [] that reference it
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
+const achievements = [
+  // ── LIFE FOUNDATIONS (top-left branch)
+  {
+    id: "start",
+    emoji: "🌱",
+    title: "Taking Root",
+    desc: "Begin your journey",
+    x: 100, y: 70,
+    requires: [],
+    link: "https://notion.so/your-home-page"   // ← replace with your Notion home
+  },
+  {
+    id: "routine",
+    emoji: "📅",
+    title: "Creature of Habit",
+    desc: "Stick to a routine for 2 weeks",
+    x: 100, y: 155,
+    requires: ["start"],
+    link: "https://notion.so/your-habit-tracker"  // ← e.g. your habit tracker page
+  },
+  {
+    id: "sleep",
+    emoji: "🌙",
+    title: "Early to Bed",
+    desc: "Sleep before midnight 7 days straight",
+    x: 100, y: 240,
+    requires: ["routine"],
+    link: "https://notion.so/your-sleep-log"
+  },
+  {
+    id: "cook",
+    emoji: "🍳",
+    title: "Home Cook",
+    desc: "Cook 10 meals at home",
+    x: 220, y: 155,
+    requires: ["start"],
+    link: "https://notion.so/your-recipe-database"
+  },
+  {
+    id: "budget",
+    emoji: "💰",
+    title: "Money Sense",
+    desc: "Track spending for a full month",
+    x: 220, y: 240,
+    requires: ["cook"],
+    link: "https://notion.so/your-budget-tracker"
+  },
+
+  // ── BODY & FITNESS (middle branch)
+  {
+    id: "move",
+    emoji: "🏃",
+    title: "First Steps",
+    desc: "Exercise 3x in one week",
+    x: 360, y: 70,
+    requires: [],
+    link: "https://notion.so/your-workout-log"
+  },
+  {
+    id: "gym",
+    emoji: "💪",
+    title: "Gainz Unlocked",
+    desc: "Go to the gym 20 times",
+    x: 360, y: 155,
+    requires: ["move"],
+    link: "https://notion.so/your-gym-tracker"
+  },
+  {
+    id: "run5k",
+    emoji: "🥇",
+    title: "5K Complete",
+    desc: "Run 5km without stopping",
+    x: 480, y: 155,
+    requires: ["move"],
+    link: "https://notion.so/your-running-log"
+  },
+  {
+    id: "strength",
+    emoji: "🏋️",
+    title: "Getting Stronger",
+    desc: "Hit a new personal best",
+    x: 360, y: 240,
+    requires: ["gym"],
+    link: "https://notion.so/your-pb-log"
+  },
+  {
+    id: "outdoors",
+    emoji: "🌲",
+    title: "Touch Grass",
+    desc: "Spend a day in nature",
+    x: 480, y: 240,
+    requires: ["run5k"],
+    link: "https://notion.so/your-outdoor-adventures"
+  },
+
+  // ── CAREER & LEARNING (right branch)
+  {
+    id: "learn",
+    emoji: "📚",
+    title: "Student Again",
+    desc: "Start learning something new",
+    x: 620, y: 70,
+    requires: [],
+    link: "https://notion.so/your-learning-dashboard"
+  },
+  {
+    id: "skill1",
+    emoji: "⚙️",
+    title: "Tool Mastered",
+    desc: "Complete a course or tutorial",
+    x: 620, y: 155,
+    requires: ["learn"],
+    link: "https://notion.so/your-courses-list"
+  },
+  {
+    id: "project",
+    emoji: "🛠️",
+    title: "Built Something",
+    desc: "Finish a personal project",
+    x: 620, y: 240,
+    requires: ["skill1"],
+    link: "https://notion.so/your-projects-database"
+  },
+  {
+    id: "share",
+    emoji: "🌐",
+    title: "Ship It",
+    desc: "Share your work with the world",
+    x: 620, y: 330,
+    requires: ["project"],
+    link: "https://notion.so/your-portfolio-page"
+  },
+
+  // ── RELATIONSHIPS & FUN (bottom-left)
+  {
+    id: "connect",
+    emoji: "❤️",
+    title: "Quality Time",
+    desc: "Plan a special date",
+    x: 100, y: 330,
+    requires: ["sleep"],
+    link: "https://notion.so/your-relationship-goals"
+  },
+  {
+    id: "travel",
+    emoji: "✈️",
+    title: "Wanderer",
+    desc: "Go somewhere new together",
+    x: 220, y: 330,
+    requires: ["budget", "connect"],
+    link: "https://notion.so/your-travel-planner"
+  },
+  {
+    id: "friends",
+    emoji: "🎉",
+    title: "Gathering",
+    desc: "Host friends at home",
+    x: 100, y: 420,
+    requires: ["connect"],
+    link: "https://notion.so/your-social-calendar"
+  },
+  {
+    id: "adventure",
+    emoji: "🗺️",
+    title: "Explorer",
+    desc: "Try something you've never done",
+    x: 220, y: 420,
+    requires: ["travel"],
+    link: "https://notion.so/your-bucket-list"
+  },
+
+  // ── MINDSET (middle-bottom)
+  {
+    id: "journal",
+    emoji: "✍️",
+    title: "Inner Voice",
+    desc: "Journal for 30 days",
+    x: 360, y: 330,
+    requires: ["strength", "outdoors"],
+    link: "https://notion.so/your-journal"
+  },
+  {
+    id: "meditate",
+    emoji: "🧘",
+    title: "Still Mind",
+    desc: "Meditate daily for 2 weeks",
+    x: 480, y: 330,
+    requires: ["journal"],
+    link: "https://notion.so/your-meditation-log"
+  },
+  {
+    id: "gratitude",
+    emoji: "🌟",
+    title: "Count Your Stars",
+    desc: "Write 100 things you're grateful for",
+    x: 480, y: 420,
+    requires: ["meditate"],
+    link: "https://notion.so/your-gratitude-list"
+  },
+
+  // ── FINAL BOSS
+  {
+    id: "balance",
+    emoji: "⚖️",
+    title: "Balance Found",
+    desc: "All major areas thriving at once",
+    x: 340, y: 490,
+    requires: ["journal", "adventure", "share", "gratitude"],
+    link: "https://notion.so/your-yearly-review"
+  },
+  {
+    id: "legend",
+    emoji: "🏆",
+    title: "Living Legend",
+    desc: "Omy at his fullest",
+    x: 340, y: 560,
+    requires: ["balance"],
+    link: "https://notion.so/your-vision-board"
+  },
+];
+
+// ─── STORAGE ────────────────────────────────────────────────────────────────
+function getUnlocked() {
+  try {
+    return JSON.parse(localStorage.getItem('omy_achievements') || '[]');
+  } catch { return []; }
+}
+function saveUnlocked(arr) {
+  try { localStorage.setItem('omy_achievements', JSON.stringify(arr)); } catch {}
+}
+
+let unlocked = getUnlocked();
+
+// ─── RENDER ─────────────────────────────────────────────────────────────────
+const tree = document.getElementById('tree');
+const svgEl = document.getElementById('svg-lines');
+
+// Draw SVG connection lines
+function drawLines() {
+  svgEl.innerHTML = '';
+  achievements.forEach(a => {
+    a.requires.forEach(reqId => {
+      const from = achievements.find(x => x.id === reqId);
+      if (!from) return;
+      const x1 = from.x + 26, y1 = from.y + 26;
+      const x2 = a.x + 26,   y2 = a.y + 26;
+      const isLit = unlocked.includes(from.id) && unlocked.includes(a.id);
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      // Elbow routing
+      const mx = x1 + (x2 - x1) / 2;
+      line.setAttribute('points', `${x1},${y1} ${x1},${y2} ${x2},${y2}`);
+      line.setAttribute('fill', 'none');
+      line.setAttribute('stroke', isLit ? '#ffdd44' : '#444');
+      line.setAttribute('stroke-width', isLit ? '2.5' : '1.5');
+      line.setAttribute('stroke-dasharray', isLit ? 'none' : '4,3');
+      svgEl.appendChild(line);
+
+      // Arrow head
+      const arr = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      const dx = x2 - x1 === 0 ? 0 : (x2 > x1 ? 1 : -1);
+      const arrowX = x2, arrowY = y2;
+      arr.setAttribute('points',
+        `${arrowX},${arrowY} ${arrowX - dx*6 - 4},${arrowY - 4} ${arrowX - dx*6 + 4},${arrowY - 4}`
+      );
+      // Simple right-facing arrow at end
+      arr.setAttribute('fill', isLit ? '#ffdd44' : '#444');
+      svgEl.appendChild(arr);
+    });
+  });
+}
+
+// Render nodes
+function renderNodes() {
+  // Remove old nodes
+  document.querySelectorAll('.node').forEach(n => n.remove());
+
+  achievements.forEach(a => {
+    const isUnlocked = unlocked.includes(a.id);
+
+    const node = document.createElement('div');
+    node.className = `node ${isUnlocked ? 'unlocked' : 'locked'}`;
+    node.style.left = a.x + 'px';
+    node.style.top  = a.y + 'px';
+    node.dataset.id = a.id;
+
+    const inner = document.createElement('div');
+    inner.className = 'node-inner';
+
+    const em = document.createElement('span');
+    em.className = 'emoji';
+    em.textContent = a.emoji;
+    inner.appendChild(em);
+
+    // Tooltip
+    const tip = document.createElement('div');
+    tip.className = 'tooltip';
+    tip.innerHTML = `
+      <span class="tip-title">${a.title}</span>
+      <span class="tip-desc">${a.desc}</span>
+      ${a.link ? `<span class="tip-link">→ Open in Notion</span>` : ''}
+      <span class="tip-desc" style="margin-top:4px;color:${isUnlocked ? '#55ff55' : '#ff5555'}">${isUnlocked ? '✔ Achieved!' : '○ Not yet'}</span>
+    `;
+
+    node.appendChild(inner);
+    node.appendChild(tip);
+    tree.appendChild(node);
+
+    // Click handler
+    node.addEventListener('click', () => {
+      if (a.link && unlocked.includes(a.id)) {
+        window.open(a.link, '_blank');
+        return;
+      }
+      // Toggle
+      if (unlocked.includes(a.id)) {
+        unlocked = unlocked.filter(x => x !== a.id);
+      } else {
+        unlocked.push(a.id);
+        // Play a little flash
+        inner.style.transition = 'box-shadow 0s';
+        inner.style.boxShadow = '0 0 30px 10px rgba(255,220,80,1)';
+        setTimeout(() => { inner.style.boxShadow = ''; inner.style.transition = ''; }, 300);
+      }
+      saveUnlocked(unlocked);
+      renderNodes();
+      drawLines();
+      updateCounter();
+    });
+  });
+}
+
+function updateCounter() {
+  document.getElementById('counter').textContent =
+    `${unlocked.length} / ${achievements.length} achieved`;
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+drawLines();
+renderNodes();
+updateCounter();
+</script>
+</body>
+</html>
